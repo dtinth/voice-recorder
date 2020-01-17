@@ -23,7 +23,6 @@
         margin: 2em;
         background: #353433;
         color: #fff;
-        overflow: hidden;
       }
 
       h1 {
@@ -129,17 +128,34 @@
             Recorded stuffs
           </h2>
           <div>
-            <p v-for="r of recordings" style="display: flex; align-items: center">
-              <span :href="r.url" @dragstart="onDragStart($event, r)"
-              draggable style="margin-right: 1em;">🎙</span>
+            <p
+              v-for="(r, index) of recordings"
+              style="display: flex; align-items: center"
+            >
+              <span
+                :href="r.url"
+                @dragstart="onDragStart($event, r)"
+                draggable
+                style="margin-right: 1em; cursor: move;"
+                >🎙</span
+              >
               <audio :src="r.url" controls></audio>
+              <a
+                href="#"
+                style="margin-left: 1em; text-decoration: none;"
+                @click="$event.preventDefault(); recordings.splice(index, 1)"
+                >❌</a
+              >
             </p>
           </div>
           <p v-if="!recordings.length" style="color: #bef;">
             <em>Your recordings will appear here.</em>
           </p>
           <p style="color: #8b8685">
-            <em>You can drag recordings out into your folder (Google Chrome only).</em>
+            <em
+              >You can drag recordings out into your folder (Google Chrome
+              only).</em
+            >
           </p>
         </section>
       </div>
