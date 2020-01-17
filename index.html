@@ -26,8 +26,6 @@
     <!-- Application shell with loading indicator -->
     <div id="main" class="p-4">
       <h1 class="text-lg mb-4">dtinth’s voice recorder</h1>
-      
-      <textarea class="w-full border border-gray-300" placeholder="Scratchpad: "></textarea>
 
       <!-- Loading indicator -->
       <div v-if="false">
@@ -80,15 +78,57 @@
 
     <template id="home-route">
       <div>
-        meow
+        <p>
+          <textarea class="w-full border border-gray-300" placeholder="Scratchpad (Just a stupid text box you can put anything in here... just for convenience you know)"></textarea>
+        </p>
+        <button @click="toggle" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full">
+          {{ recording ? 'Stop' : 'Record' }}
+        </button>
+        <ul>
+          <li v-for="r of recordings" @dragstart="onDragStart($event, r)">
+            <audio :src="r.url" controls></audio>
+          </li>
+        </ul>
       </div>
     </template>
     <script>
       App.registerRoute('home', '/', {
         data() {
-          return {}
+          return {
+            recording: false,
+            recordings: [],
+          }
         },
-        async mounted() {
+        mounted() {
+          this.recorder = new MicRecorder({ bitRate: 320 })
+        },
+        methods: {
+          onDragStart(e, { file, url }) {
+            e.dataTransfer.setData(
+              "DownloadURL",
+              [file.name, file.type, url].join(':')
+            )
+          },
+          async toggle() {
+            try {
+              if (!this.recording) {
+                await this.recorder.start()
+                this.recording = true
+              } else {
+                const [buffer, blob] = await this.recorder.stop().getMp3()
+                this.recording = false
+                const file = new File(buffer, 'recording' + new Date().toJSON().replace(/\D/g, '') + '.mp3', {
+                  type: blob.type,
+                  lastModified: Date.now()
+                })
+                const url = URL.createObjectURL(file)
+                this.recordings.push({ file, url })
+              }
+            } catch (e) {
+              console.error(e)
+              alert('Error: ' + e)
+            }
+          }
         }
       })
     </script>
@@ -106,6 +146,7 @@
     <!-- Load the Vue dependency -->
     <script src="https://unpkg.com/vue@2.6.10/dist/vue.js"></script>
     <script src="https://unpkg.com/vue-router@3.1.3/dist/vue-router.js"></script>
+    <script src="https://unpkg.com/mic-recorder-to-mp3@2.2.1/dist/index.min.js"></script>
 
     <!-- Start the runtime -->
     <script>
