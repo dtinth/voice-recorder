@@ -119,9 +119,11 @@
         <button
           @click="toggle"
           class="btn"
+          style="position: relative;"
           :class="{ 'is-recording': recording }"
         >
-          {{ recording ? 'Stop' : 'Record' }}
+          <span style="position: absolute; top: 0; left: 0; bottom: 0; background: #8b8685;" :style="{ width: (amplitude * 100).toFixed(1) + '%' }" v-if="recording"></span>
+          <span style="position: relative; display: inline-block;">{{ recording ? 'Stop' : 'Record' }}</span>
         </button>
         <section class="mt-4">
           <h2>
@@ -131,6 +133,7 @@
             <p
               v-for="(r, index) of recordings"
               style="display: flex; align-items: center"
+              :key="r.id"
             >
               <span
                 :href="r.url"
@@ -161,15 +164,33 @@
       </div>
     </template>
     <script>
+      let nextId = 1
       App.registerRoute('home', '/', {
         data() {
           return {
             recording: false,
-            recordings: []
+            recordings: [],
+            amplitude: 0
           }
         },
         mounted() {
+          const that = this
+
           this.recorder = new MicRecorder({ bitRate: 320 })
+
+          // Monkey patch MicRecorder with ability to display waveform
+          this.recorder.addMicrophoneListener = (addMicrophoneListener => function(stream) {
+            addMicrophoneListener.call(this, stream)
+            this.processor.addEventListener('audioprocess', e => {
+              const data = e.inputBuffer.getChannelData(0)
+              let amplitude = 0
+              for (let i = 0; i < data.length; i++) {
+                const a = Math.abs(data[i])
+                if (a > amplitude) amplitude = a
+              }
+              that.amplitude = amplitude
+            })
+          })(this.recorder.addMicrophoneListener)
         },
         methods: {
           onDragStart(e, { file, url }) {
@@ -195,7 +216,7 @@
                   }
                 )
                 const url = URL.createObjectURL(file)
-                this.recordings.push({ file, url })
+                this.recordings.unshift({ file, url, id: nextId++ })
               }
             } catch (e) {
               console.error(e)
