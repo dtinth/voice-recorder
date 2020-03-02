@@ -191,6 +191,21 @@
               that.amplitude = amplitude
             })
           })(this.recorder.addMicrophoneListener)
+          
+          // Monkey patch WebRTC to force-disable auto gain control
+          navigator.mediaDevices.getUserMedia = (getUserMedia => function(...args) {
+            const [options] = args
+            if (options.audio) {
+              if (options.audio === true) {
+                options.audio = {}
+              }
+              options.audio.autoGainControl = false
+              options.audio.echoCancellation = false
+              options.audio.noiseSuppression = true
+            }
+            return getUserMedia.call(this, ...args)
+            //          autoGainControl
+          })(navigator.mediaDevices.getUserMedia)
         },
         methods: {
           onDragStart(e, { file, url }) {
