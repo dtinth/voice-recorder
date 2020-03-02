@@ -209,7 +209,7 @@
                 this.recording = false
                 const file = new File(
                   buffer,
-                  'recording' + new Date().toJSON().replace(/\D/g, '') + '.mp3',
+                  'recording' + new Date().toJSON().replace(/\W/g, '') + '.mp3',
                   {
                     type: blob.type,
                     lastModified: Date.now()
