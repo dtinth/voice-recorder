@@ -206,6 +206,12 @@
             return getUserMedia.call(this, ...args)
             //          autoGainControl
           })(navigator.mediaDevices.getUserMedia)
+
+          // Demo mode: Add a pre-recorded file
+          if (location.search === '?demo') {
+            const file = new File()
+            this.recordings.unshift({ file, url, id: nextId++ })
+          }
         },
         methods: {
           onDragStart(e, { file, url }) {
