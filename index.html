@@ -209,8 +209,13 @@
 
           // Demo mode: Add a pre-recorded file
           if (location.search === '?demo') {
-            const file = new File()
-            this.recordings.unshift({ file, url, id: nextId++ })
+            fetch('https://cdn.glitch.com/d2fe94e5-8121-48fa-87d8-5c1a7793c56c%2Fdemo.mp3?v=1584020680220&cors')
+              .then(r => r.blob())
+              .then(file => {
+                file.name = 'demo.mp3'
+                const url = URL.createObjectURL(file)
+                this.recordings.unshift({ file, url, id: nextId++ })
+              })
           }
         },
         methods: {
