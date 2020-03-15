@@ -29,7 +29,6 @@
         color: #8b8685;
         line-height: 1;
       }
-      h1,
       h2 {
         margin-bottom: 0;
       }
@@ -44,6 +43,7 @@
         background: #d7fc70;
         border: 2px solid #d7fc70;
         color: #000;
+        padding: 10px;
       }
       .btn.is-recording {
         background: #353433;
@@ -107,12 +107,6 @@
 
     <template id="home-route">
       <div>
-        <p>
-          <textarea
-            style="width: 100%; box-sizing: border-box; font: inherit; background: #252423; border: 1px solid #454443; color: #bef;"
-            placeholder="Scratchpad (You can write anything in here... just for convenience, you know)"
-          ></textarea>
-        </p>
         <button
           @click="toggle"
           class="btn"
@@ -220,19 +214,21 @@
               this.recorder.stop = () => {
                 recorder.stop()
                 for (const track of stream.getTracks()) track.stop()
+                source.disconnect()
+                processor.disconnect()
                 return {
-                  getMp3: async () => {
+                  getMp3: async filename => {
                     await finishPromise
                     const audioCtx = new (window.AudioContext ||
                       window.webkitAudioContext)()
                     const buffer = await new Blob(blobs).arrayBuffer()
-                    console.log(buffer)
                     const audioBuffer = await audioCtx.decodeAudioData(buffer)
                     const waveBuffer = audioBufferToWav(audioBuffer)
-                    const file = new File([waveBuffer], 'recording.wav', {
-                      type: 'audio/wav'
+                    const file = new File([waveBuffer], filename, {
+                      type: 'audio/wav',
+                      lastModified: Date.now()
                     })
-                    return [[waveBuffer], file]
+                    return file
                   }
                 }
               }
@@ -265,16 +261,14 @@
                 await this.recorder.start()
                 this.recording = true
               } else {
-                const [buffer, blob] = await this.recorder.stop().getMp3()
+                const file = await this.recorder
+                  .stop()
+                  .getMp3(
+                    'recording' +
+                      new Date().toJSON().replace(/\W/g, '') +
+                      '.wav'
+                  )
                 this.recording = false
-                const file = new File(
-                  buffer,
-                  'recording' + new Date().toJSON().replace(/\W/g, '') + '.wav',
-                  {
-                    type: blob.type,
-                    lastModified: Date.now()
-                  }
-                )
                 const url = URL.createObjectURL(file)
                 this.recordings.unshift({ file, url, id: nextId++ })
               }
@@ -286,14 +280,6 @@
         }
       })
     </script>
-    <style>
-      /* GitHub’s README API renders header with `a.anchor` link.
-       * It does not work with Vue Router and so is hidden.
-       * This is just to show the functionality of vuetoy; feel free to remove it when you implement your app. */
-      .markdown-content a.anchor {
-        display: none;
-      }
-    </style>
 
     <script src="vendor/audiobuffer-to-wav.js"></script>
 
