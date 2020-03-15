@@ -178,44 +178,65 @@
         },
         mounted() {
           const that = this
-          
+
           this.recorder = {
             start: async () => {
-              const stream = await navigator.mediaDevices
-                .getUserMedia({
-                  audio: {
-                    autoGainControl: false,
-                    echoCancellation: false,
-                    noiseSuppression: true
-                  },
-                  video: false
-                })
+              const audioCtx =
+                window.mainAudioContext ||
+                (window.mainAudioContext = new (window.AudioContext ||
+                  window.webkitAudioContext)())
+              const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                  autoGainControl: false,
+                  echoCancellation: false,
+                  noiseSuppression: true
+                },
+                video: false
+              })
               const recorder = new MediaRecorder(stream, {
                 mimeType: 'audio/webm; codecs="pcm"'
               })
+              const source = audioCtx.createMediaStreamSource(stream)
+              const processor = audioCtx.createScriptProcessor(0, 1, 1)
+              processor.onaudioprocess = e => {
+                const data = e.inputBuffer.getChannelData(0)
+                let amplitude = 0
+                for (let i = 0; i < data.length; i++) {
+                  const a = Math.abs(data[i])
+                  if (a > amplitude) amplitude = a
+                }
+                that.amplitude = amplitude
+              }
+              source.connect(processor)
+              processor.connect(audioCtx.destination)
+
               const blobs = []
               recorder.ondataavailable = function(e) {
                 blobs.push(e.data)
                 console.log(e.data.size)
               }
-              const finishPromise = new Promise(r => recorder.onstop = r)
+              const finishPromise = new Promise(r => (recorder.onstop = r))
               recorder.start()
               this.recorder.stop = () => {
                 recorder.stop()
+                for (const track of stream.getTracks()) track.stop()
                 return {
                   getMp3: async () => {
                     await finishPromise
-                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+                    const audioCtx = new (window.AudioContext ||
+                      window.webkitAudioContext)()
                     const buffer = await new Blob(blobs).arrayBuffer()
                     console.log(buffer)
                     const audioBuffer = await audioCtx.decodeAudioData(buffer)
                     const waveBuffer = audioBufferToWav(audioBuffer)
-                    const file = new File([waveBuffer], 'recording.wav', {type: 'audio/wav'})
+                    const file = new File([waveBuffer], 'recording.wav', {
+                      type: 'audio/wav'
+                    })
                     return [[waveBuffer], file]
                   }
                 }
               }
-            },
+            }
           }
 
           // Demo mode: Add a pre-recorded file
@@ -275,7 +296,7 @@
     </style>
 
     <script src="vendor/audiobuffer-to-wav.js"></script>
-    
+
     <!-- ############################################################### -->
 
     <!-- Load the Vue dependency -->
