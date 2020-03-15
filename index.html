@@ -231,7 +231,9 @@
               let nextWaveformColumnId = 1
               const startTime = Date.now()
               this.currentWaveform = waveform
+              let lastTime = Date.now()
               processor.onaudioprocess = e => {
+                const now = Date.now()
                 const data = e.inputBuffer.getChannelData(0)
                 let amplitude = 0
                 for (let i = 0; i < data.length; i++) {
@@ -239,7 +241,7 @@
                   if (a > amplitude) amplitude = a
                 }
                 that.amplitude = amplitude
-                const audioTime = Date.now() - startTime
+                const audioTime = now() - startTime
                 if (audioTime - waveform[waveform.length - 1].time > 200) {
                   waveform.push({
                     id: waveform.nextId++,
