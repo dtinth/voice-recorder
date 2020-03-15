@@ -175,13 +175,13 @@
                 :href="r.url"
                 @dragstart="onDragStart($event, r)"
                 draggable
-                style="margin-right: 1em; cursor: move;"
-                >🎙</span
+                style="margin-right: 1em; cursor: move; flex: auto;"
+                ><waveform :data="r.waveform"></waveform></span
               >
-              <audio :src="r.url" controls></audio>
+              <audio style="flex: none;" :src="r.url" controls></audio>
               <a
                 href="#"
-                style="margin-left: 1em; text-decoration: none;"
+                style="margin-left: 1em; text-decoration: none; flex: none;"
                 @click="$event.preventDefault(); recordings.splice(index, 1)"
                 >❌</a
               >
@@ -321,14 +321,27 @@
                 file.name = 'demo.mp3'
                 const arrayBuffer = await file.arrayBuffer()
                 const ctx = new OfflineAudioContext(1, 1, 44100)
-                const audioBuffer = ctx.decodeAudioData(arrayBuffer)
-                      const pcm = audioBuffer.getChannelData(0)
-                      const bucketSize = audioBuffer.sampleRate * 0.2
-                      const buckets = Array(Math.ceil(pcm.length / bucketSize)).fill(0)
-                      for (let i = 0; i < pcm.length; i++) {
-                      }
+                const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
+                const pcm = audioBuffer.getChannelData(0)
+                const bucketSize = audioBuffer.sampleRate * 0.2
+                const buckets = Array(Math.ceil(pcm.length / bucketSize)).fill(
+                  0
+                )
+                for (let i = 0; i < pcm.length; i++) {
+                  const bucketNumber = Math.floor(i / bucketSize)
+                  buckets[bucketNumber] = Math.max(
+                    buckets[bucketNumber],
+                    Math.abs(pcm[i])
+                  )
+                }
+                const max = Math.max(...buckets)
+                const waveform = buckets.map((v, i) => ({
+                  id: i,
+                  height: Math.round(v / max * 90),
+                  time: i * 200,
+                }))
                 const url = URL.createObjectURL(file)
-                this.recordings.unshift({ file, url, id: nextId++ })
+                this.recordings.unshift({ file, url, id: nextId++, waveform })
               })
               .catch(e => {
                 alert('Demo start failed: ' + e)
@@ -347,13 +360,14 @@
               if (!this.activeRecording) {
                 this.activeRecording = await this.recorder.start()
               } else {
+                const { waveform } = this.activeRecording
                 const stoppedRecording = this.activeRecording.stop()
                 const file = await stoppedRecording.getFile(
                   'recording' + new Date().toJSON().replace(/\W/g, '') + '.wav'
                 )
                 const url = URL.createObjectURL(file)
                 this.activeRecording = null
-                this.recordings.unshift({ file, url, id: nextId++ })
+                this.recordings.unshift({ file, url, id: nextId++, waveform })
               }
             } catch (e) {
               console.error(e)
