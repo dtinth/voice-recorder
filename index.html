@@ -117,12 +117,13 @@
     </script>
     <style>
       .waveform {
-        display: flex;
+        display: inline-flex;
         align-items: flex-end;
         justify-content: flex-start;
         height: 64px;
         padding: 1px;
         padding-left: 0px;
+        border: 2px solid #8b8685;
       }
       .waveform > div {
         background: #8b8685;
@@ -222,7 +223,9 @@
               })
               const source = audioCtx.createMediaStreamSource(stream)
               const processor = audioCtx.createScriptProcessor(0, 1, 1)
-              this.currentWaveform = []
+              const waveform = []
+              const startTime = Date.now()
+              this.currentWaveform = waveform
               processor.onaudioprocess = e => {
                 const data = e.inputBuffer.getChannelData(0)
                 let amplitude = 0
@@ -231,17 +234,18 @@
                   if (a > amplitude) amplitude = a
                 }
                 that.amplitude = amplitude
-                i
-                if (!this.currentWaveform.nextId) {
-                  this.currentWaveform.nextId = 1
+                if (!waveform.nextId) {
+                  waveform.nextId = 1
                 }
-                if (!this.currentWaveform || Date.now() - this.currentWaveform[this.currentWaveform.length - 1].time > 150) {
-                  this.currentWaveform.push({
-                    id: this.currentWaveform.nextId++,
+                if (!waveform.length || Date.now() - waveform[waveform.length - 1].time > 200) {
+                  waveform.push({
+                    id: waveform.nextId++,
                     height: Math.round(amplitude * 100),
+                    time: Date.now(),
+                    audioTime: Date.now() - startTime,
                   })
                 } else {
-                  const column = this.currentWaveform[this.currentWaveform.length - 1]
+                  const column = waveform[waveform.length - 1]
                   column.height = Math.max(column.height, Math.round(amplitude * 100))
                 }
               }
