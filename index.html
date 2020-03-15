@@ -240,8 +240,9 @@
                   const a = Math.abs(data[i])
                   if (a > amplitude) amplitude = a
                 }
-                that.amplitude = amplitude
-                const audioTime = now() - startTime
+                that.amplitude = Math.max(this.amplitude - (now - lastTime) / 500, 0, amplitude)
+                lastTime = now
+                const audioTime = now - startTime
                 if (audioTime - waveform[waveform.length - 1].time > 200) {
                   waveform.push({
                     id: waveform.nextId++,
