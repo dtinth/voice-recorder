@@ -205,14 +205,29 @@
                   video: false
                 })
               const recorder = new MediaRecorder(stream, {
-                mimeType: 'audio/webm; codecs="opus"'
+                mimeType: 'audio/webm; codecs="pcm"'
               })
+              const blobs = []
               recorder.ondataavailable = function(e) {
-                console.log(e)
+                blobs.push(e.data)
+                console.log(e.data.size)
               }
+              const finishPromise = new Promise(r => recorder.onstop = r)
               recorder.start()
               this.recorder.stop = () => {
                 recorder.stop()
+                return {
+                  getMp3: async () => {
+                    await finishPromise
+                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+                    const blob = new Blob(blobs, { type: 'audio/webm; codecs="pcm"' })
+                    const buffer = await blob.arrayBuffer()
+                    console.log(buffer)
+                    const data = await audioCtx.decodeAudioData(buffer)
+                    console.log(data)
+                    return [blobs, blob]
+                  }
+                }
               }
             },
           }
