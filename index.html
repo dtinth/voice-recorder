@@ -223,7 +223,12 @@
               })
               const source = audioCtx.createMediaStreamSource(stream)
               const processor = audioCtx.createScriptProcessor(0, 1, 1)
-              const waveform = []
+              const waveform = [{
+                id: 0,
+                height: 0,
+                time: 0
+              }]
+              let nextWaveformColumnId = 1
               const startTime = Date.now()
               this.currentWaveform = waveform
               processor.onaudioprocess = e => {
@@ -234,15 +239,12 @@
                   if (a > amplitude) amplitude = a
                 }
                 that.amplitude = amplitude
-                if (!waveform.nextId) {
-                  waveform.nextId = 1
-                }
-                if (!waveform.length || Date.now() - waveform[waveform.length - 1].time > 200) {
+                const audioTime = Date.now() - startTime
+                if (audioTime - waveform[waveform.length - 1].time > 200) {
                   waveform.push({
                     id: waveform.nextId++,
                     height: Math.round(amplitude * 100),
-                    time: Date.now(),
-                    audioTime: Date.now() - startTime,
+                    time: waveform[waveform.length - 1].time + 200,
                   })
                 } else {
                   const column = waveform[waveform.length - 1]
