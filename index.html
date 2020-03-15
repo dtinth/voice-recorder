@@ -29,7 +29,8 @@
         color: #8b8685;
         line-height: 1;
       }
-      h1, h2 {
+      h1,
+      h2 {
         margin-bottom: 0;
       }
       h1 + p {
@@ -38,7 +39,8 @@
       a {
         color: #ffa;
       }
-      h1 + p, h1 + p a {
+      h1 + p,
+      h1 + p a {
         color: #8b8685;
       }
       .btn {
@@ -131,8 +133,14 @@
           style="position: relative;"
           :class="{ 'is-recording': recording }"
         >
-          <span style="position: absolute; top: 0; left: 0; bottom: 0; background: #8b8685;" :style="{ width: (amplitude * 100).toFixed(1) + '%' }" v-if="recording"></span>
-          <span style="position: relative; display: inline-block;">{{ recording ? 'Stop' : 'Record' }}</span>
+          <span
+            style="position: absolute; top: 0; left: 0; bottom: 0; background: #8b8685;"
+            :style="{ width: (amplitude * 100).toFixed(1) + '%' }"
+            v-if="recording"
+          ></span>
+          <span style="position: relative; display: inline-block;"
+            >{{ recording ? 'Stop' : 'Record' }}</span
+          >
         </button>
         <section class="mt-4">
           <h2>
@@ -184,41 +192,36 @@
         },
         mounted() {
           const that = this
-
-          this.recorder = new MicRecorder({ bitRate: 320 })
-
-          // Monkey patch MicRecorder with ability to display waveform
-          this.recorder.addMicrophoneListener = (addMicrophoneListener => function(stream) {
-            addMicrophoneListener.call(this, stream)
-            this.processor.addEventListener('audioprocess', e => {
-              const data = e.inputBuffer.getChannelData(0)
-              let amplitude = 0
-              for (let i = 0; i < data.length; i++) {
-                const a = Math.abs(data[i])
-                if (a > amplitude) amplitude = a
-              }
-              that.amplitude = amplitude
-            })
-          })(this.recorder.addMicrophoneListener)
           
-          // Monkey patch WebRTC to force-disable auto gain control
-          navigator.mediaDevices.getUserMedia = (getUserMedia => function(...args) {
-            const [options] = args
-            if (options.audio) {
-              if (options.audio === true) {
-                options.audio = {}
+          this.recorder = {
+            start: async () => {
+              const stream = await navigator.mediaDevices
+                .getUserMedia({
+                  audio: {
+                    autoGainControl: false,
+                    echoCancellation: false,
+                    noiseSuppression: true
+                  },
+                  video: false
+                })
+              const recorder = new MediaRecorder(stream, {
+                mimeType: 'audio/webm; codecs="opus"'
+              })
+              recorder.ondataavailable = function(e) {
+                console.log(e)
               }
-              options.audio.autoGainControl = false
-              options.audio.echoCancellation = false
-              options.audio.noiseSuppression = true
-            }
-            return getUserMedia.call(this, ...args)
-            //          autoGainControl
-          })(navigator.mediaDevices.getUserMedia)
+              recorder.start()
+              this.recorder.stop = () => {
+                recorder.stop()
+              }
+            },
+          }
 
           // Demo mode: Add a pre-recorded file
           if (location.search === '?demo') {
-            fetch('https://cdn.glitch.com/d2fe94e5-8121-48fa-87d8-5c1a7793c56c%2Fdemo.mp3?v=1584020680220&cors')
+            fetch(
+              'https://cdn.glitch.com/d2fe94e5-8121-48fa-87d8-5c1a7793c56c%2Fdemo.mp3?v=1584020680220&cors'
+            )
               .then(r => r.blob())
               .then(file => {
                 file.name = 'demo.mp3'
@@ -275,7 +278,6 @@
     <!-- Load the Vue dependency -->
     <script src="https://unpkg.com/vue@2.6.10/dist/vue.js"></script>
     <script src="https://unpkg.com/vue-router@3.1.3/dist/vue-router.js"></script>
-    <script src="https://unpkg.com/mic-recorder-to-mp3@2.2.1/dist/index.min.js"></script>
 
     <!-- Start the runtime -->
     <script>
