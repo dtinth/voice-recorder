@@ -105,6 +105,34 @@
 
     <!-- ############################################################### -->
 
+    <template id="waveform-component">
+      <div class="waveform">
+        <div v-for="column of data" :style="{ height: column.height + '%' }"></div>
+      </div>
+    </template>
+    <script>
+      App.registerComponent('waveform', {
+        props: ['data']
+      })
+    </script>
+    <style>
+      .waveform {
+        display: flex;
+        align-items: flex-end;
+        justify-content: flex-start;
+        height: 64px;
+        padding: 1px;
+        padding-left: 0px;
+      }
+      .waveform > div {
+        background: #8b8685;
+        margin-left: 1px;
+        width: 4px;
+      }
+    </style>
+
+    <!-- ############################################################### -->
+
     <template id="home-route">
       <div>
         <button
@@ -122,6 +150,7 @@
             >{{ recording ? 'Stop' : 'Record' }}</span
           >
         </button>
+        <waveform v-if="currentWaveform" :data="currentWaveform"></waveform>
         <section class="mt-4">
           <h2>
             Recorded stuffs
@@ -167,6 +196,7 @@
           return {
             recording: false,
             recordings: [],
+            currentWaveform: null,
             amplitude: 0
           }
         },
@@ -192,6 +222,7 @@
               })
               const source = audioCtx.createMediaStreamSource(stream)
               const processor = audioCtx.createScriptProcessor(0, 1, 1)
+              this.currentWaveform = []
               processor.onaudioprocess = e => {
                 const data = e.inputBuffer.getChannelData(0)
                 let amplitude = 0
@@ -200,6 +231,19 @@
                   if (a > amplitude) amplitude = a
                 }
                 that.amplitude = amplitude
+                i
+                if (!this.currentWaveform.nextId) {
+                  this.currentWaveform.nextId = 1
+                }
+                if (!this.currentWaveform || Date.now() - this.currentWaveform[this.currentWaveform.length - 1].time > 150) {
+                  this.currentWaveform.push({
+                    id: this.currentWaveform.nextId++,
+                    height: Math.round(amplitude * 100),
+                  })
+                } else {
+                  const column = this.currentWaveform[this.currentWaveform.length - 1]
+                  column.height = Math.max(column.height, Math.round(amplitude * 100))
+                }
               }
               source.connect(processor)
               processor.connect(audioCtx.destination)
@@ -207,7 +251,6 @@
               const blobs = []
               recorder.ondataavailable = function(e) {
                 blobs.push(e.data)
-                console.log(e.data.size)
               }
               const finishPromise = new Promise(r => (recorder.onstop = r))
               recorder.start()
