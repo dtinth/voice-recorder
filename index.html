@@ -120,7 +120,7 @@
     </script>
     <style>
       .waveform {
-        display: inline-flex;
+        display: flex;
         align-items: flex-end;
         justify-content: flex-start;
         height: 64px;
@@ -175,10 +175,10 @@
                 :href="r.url"
                 @dragstart="onDragStart($event, r)"
                 draggable
-                style="margin-right: 1em; cursor: move; flex: auto;"
-                ><waveform :data="r.waveform"></waveform></span
+                style="margin-right: 1em; cursor: move;"
+                ><waveform :data="r.waveform" @click="waveformClick()"></waveform></span
               >
-              <audio style="flex: none;" :src="r.url" controls></audio>
+              <audio style="margin-left: auto; flex: none;" :src="r.url" controls></audio>
               <a
                 href="#"
                 style="margin-left: 1em; text-decoration: none; flex: none;"
