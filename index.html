@@ -176,7 +176,7 @@
                 @dragstart="onDragStart($event, r)"
                 draggable
                 style="margin-right: 1em; cursor: move;"
-                ><waveform :data="r.waveform" @click="waveformClick()"></waveform></span
+                ><waveform :data="r.waveform"></waveform></span
               >
               <audio style="margin-left: auto; flex: none;" :src="r.url" controls></audio>
               <a
