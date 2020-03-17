@@ -29,17 +29,11 @@
         color: #8b8685;
         line-height: 1;
       }
-      h1, h2 {
+      h2 {
         margin-bottom: 0;
-      }
-      h1 + p {
-        margin-top: 0.25em;
       }
       a {
         color: #ffa;
-      }
-      h1 + p, h1 + p a {
-        color: #8b8685;
       }
       .btn {
         display: block;
@@ -49,6 +43,7 @@
         background: #d7fc70;
         border: 2px solid #d7fc70;
         color: #000;
+        padding: 10px;
       }
       .btn.is-recording {
         background: #353433;
@@ -62,13 +57,6 @@
     <!-- Application shell with loading indicator -->
     <div id="main" class="p-4">
       <h1 class="text-lg">Dead simple voice recorder</h1>
-      <p>
-        A simple voice recording app using the
-        <a href="https://github.com/closeio/mic-recorder-to-mp3"
-          >mic-recorder-to-mp3</a
-        >
-        library.
-      </p>
 
       <!-- Loading indicator -->
       <div v-if="false">
@@ -117,27 +105,66 @@
 
     <!-- ############################################################### -->
 
+    <template id="waveform-component">
+      <div class="waveform">
+        <div
+          v-for="column of data"
+          :style="{ height: column.height + '%' }"
+        ></div>
+      </div>
+    </template>
+    <script>
+      App.registerComponent('waveform', {
+        props: ['data']
+      })
+    </script>
+    <style>
+      .waveform {
+        display: flex;
+        align-items: flex-end;
+        justify-content: flex-start;
+        height: 64px;
+        padding: 1px;
+        padding-left: 0px;
+        border: 2px solid #8b8685;
+      }
+      .waveform > div {
+        background: #8b8685;
+        margin-left: 1px;
+        width: 4px;
+      }
+    </style>
+
+    <!-- ############################################################### -->
+
     <template id="home-route">
       <div>
-        <p>
-          <textarea
-            style="width: 100%; box-sizing: border-box; font: inherit; background: #252423; border: 1px solid #454443; color: #bef;"
-            placeholder="Scratchpad (You can write anything in here... just for convenience, you know)"
-          ></textarea>
-        </p>
         <button
           @click="toggle"
           class="btn"
           style="position: relative;"
-          :class="{ 'is-recording': recording }"
+          :class="{ 'is-recording': !!activeRecording }"
         >
-          <span style="position: absolute; top: 0; left: 0; bottom: 0; background: #8b8685;" :style="{ width: (amplitude * 100).toFixed(1) + '%' }" v-if="recording"></span>
-          <span style="position: relative; display: inline-block;">{{ recording ? 'Stop' : 'Record' }}</span>
+          <span
+            style="position: absolute; top: 0; left: 0; bottom: 0; background: #8b8685;"
+            :style="{ width: (amplitude * 100).toFixed(1) + '%' }"
+            v-if="activeRecording"
+          ></span>
+          <span style="position: relative; display: inline-block;"
+            >{{ activeRecording ? 'Stop' : 'Record' }}</span
+          >
         </button>
-        <section class="mt-4">
-          <h2>
-            Recorded stuffs
-          </h2>
+        <template v-if="!recordings.length && !activeRecording">
+          <p style="color: #bef; text-align: center;">
+            <em>&uarr; Click the Record button above to begin</em>
+          </p>
+        </template>
+        <template v-if="activeRecording">
+          <div style="margin-top: 1em">
+            <waveform :data="activeRecording.waveform"></waveform>
+          </div>
+        </template>
+        <section v-if="recordings.length">
           <div>
             <p
               v-for="(r, index) of recordings"
@@ -149,20 +176,17 @@
                 @dragstart="onDragStart($event, r)"
                 draggable
                 style="margin-right: 1em; cursor: move;"
-                >🎙</span
+                ><waveform :data="r.waveform"></waveform></span
               >
-              <audio :src="r.url" controls></audio>
+              <audio style="margin-left: auto; flex: none;" :src="r.url" controls></audio>
               <a
                 href="#"
-                style="margin-left: 1em; text-decoration: none;"
+                style="margin-left: 1em; text-decoration: none; flex: none;"
                 @click="$event.preventDefault(); recordings.splice(index, 1)"
                 >❌</a
               >
             </p>
           </div>
-          <p v-if="!recordings.length" style="color: #bef;">
-            <em>Your recordings will appear here.</em>
-          </p>
           <p style="color: #8b8685">
             <em
               >You can drag recordings out into your folder (Google Chrome
@@ -177,7 +201,7 @@
       App.registerRoute('home', '/', {
         data() {
           return {
-            recording: false,
+            activeRecording: null,
             recordings: [],
             amplitude: 0
           }
@@ -185,45 +209,142 @@
         mounted() {
           const that = this
 
-          this.recorder = new MicRecorder({ bitRate: 320 })
+          this.recorder = {
+            start: async () => {
+              const audioCtx =
+                window.mainAudioContext ||
+                (window.mainAudioContext = new (window.AudioContext ||
+                  window.webkitAudioContext)())
+              const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                  autoGainControl: false,
+                  echoCancellation: false,
+                  noiseSuppression: true
+                },
+                video: false
+              })
+              const recorder = new MediaRecorder(stream, {
+                mimeType: 'audio/webm; codecs="pcm"'
+              })
+              const source = audioCtx.createMediaStreamSource(stream)
+              const processor = audioCtx.createScriptProcessor(0, 1, 1)
+              const waveform = [
+                {
+                  id: 0,
+                  height: 0,
+                  time: 0
+                }
+              ]
+              let nextWaveformColumnId = 1
+              let startTime = 0
+              let lastTime = Date.now()
+              processor.onaudioprocess = e => {
+                if (recorder.state !== 'recording') {
+                  return
+                }
+                if (!startTime) {
+                  startTime = Date.now()
+                }
+                const now = Date.now()
+                const data = e.inputBuffer.getChannelData(0)
+                let amplitude = 0
+                for (let i = 0; i < data.length; i++) {
+                  const a = Math.abs(data[i])
+                  if (a > amplitude) amplitude = a
+                }
+                that.amplitude = Math.max(
+                  this.amplitude - (now - lastTime) / 500,
+                  0,
+                  amplitude
+                )
+                lastTime = now
+                const audioTime = now - startTime
+                if (audioTime - waveform[waveform.length - 1].time > 200) {
+                  waveform.push({
+                    id: waveform.nextId++,
+                    height: Math.round(amplitude * 100),
+                    time: waveform[waveform.length - 1].time + 200
+                  })
+                } else {
+                  const column = waveform[waveform.length - 1]
+                  column.height = Math.max(
+                    column.height,
+                    Math.round(amplitude * 100)
+                  )
+                }
+              }
+              source.connect(processor)
+              processor.connect(audioCtx.destination)
 
-          // Monkey patch MicRecorder with ability to display waveform
-          this.recorder.addMicrophoneListener = (addMicrophoneListener => function(stream) {
-            addMicrophoneListener.call(this, stream)
-            this.processor.addEventListener('audioprocess', e => {
-              const data = e.inputBuffer.getChannelData(0)
-              let amplitude = 0
-              for (let i = 0; i < data.length; i++) {
-                const a = Math.abs(data[i])
-                if (a > amplitude) amplitude = a
+              const blobs = []
+              recorder.ondataavailable = function(e) {
+                blobs.push(e.data)
               }
-              that.amplitude = amplitude
-            })
-          })(this.recorder.addMicrophoneListener)
-          
-          // Monkey patch WebRTC to force-disable auto gain control
-          navigator.mediaDevices.getUserMedia = (getUserMedia => function(...args) {
-            const [options] = args
-            if (options.audio) {
-              if (options.audio === true) {
-                options.audio = {}
+
+              const finishPromise = new Promise(r => (recorder.onstop = r))
+              recorder.start()
+
+              return {
+                waveform,
+                stop: () => {
+                  recorder.stop()
+                  for (const track of stream.getTracks()) track.stop()
+                  source.disconnect()
+                  processor.disconnect()
+                  return {
+                    getFile: async filename => {
+                      await finishPromise
+                      const audioCtx = new (window.AudioContext ||
+                        window.webkitAudioContext)()
+                      const buffer = await new Blob(blobs).arrayBuffer()
+                      const audioBuffer = await audioCtx.decodeAudioData(buffer)
+                      const waveBuffer = audioBufferToWav(audioBuffer)
+                      const file = new File([waveBuffer], filename, {
+                        type: 'audio/wav',
+                        lastModified: Date.now()
+                      })
+                      return file
+                    }
+                  }
+                }
               }
-              options.audio.autoGainControl = false
-              options.audio.echoCancellation = false
-              options.audio.noiseSuppression = true
             }
-            return getUserMedia.call(this, ...args)
-            //          autoGainControl
-          })(navigator.mediaDevices.getUserMedia)
+          }
 
           // Demo mode: Add a pre-recorded file
           if (location.search === '?demo') {
-            fetch('https://cdn.glitch.com/d2fe94e5-8121-48fa-87d8-5c1a7793c56c%2Fdemo.mp3?v=1584020680220&cors')
+            fetch(
+              'https://cdn.glitch.com/d2fe94e5-8121-48fa-87d8-5c1a7793c56c%2Fdemo.mp3?v=1584020680220&cors'
+            )
               .then(r => r.blob())
-              .then(file => {
+              .then(async file => {
                 file.name = 'demo.mp3'
+                const arrayBuffer = await file.arrayBuffer()
+                const ctx = new OfflineAudioContext(1, 1, 44100)
+                const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
+                const pcm = audioBuffer.getChannelData(0)
+                const bucketSize = audioBuffer.sampleRate * 0.2
+                const buckets = Array(Math.ceil(pcm.length / bucketSize)).fill(
+                  0
+                )
+                for (let i = 0; i < pcm.length; i++) {
+                  const bucketNumber = Math.floor(i / bucketSize)
+                  buckets[bucketNumber] = Math.max(
+                    buckets[bucketNumber],
+                    Math.abs(pcm[i])
+                  )
+                }
+                const max = Math.max(...buckets)
+                const waveform = buckets.map((v, i) => ({
+                  id: i,
+                  height: Math.round(v / max * 90),
+                  time: i * 200,
+                }))
                 const url = URL.createObjectURL(file)
-                this.recordings.unshift({ file, url, id: nextId++ })
+                this.recordings.unshift({ file, url, id: nextId++, waveform })
+              })
+              .catch(e => {
+                alert('Demo start failed: ' + e)
               })
           }
         },
@@ -236,22 +357,17 @@
           },
           async toggle() {
             try {
-              if (!this.recording) {
-                await this.recorder.start()
-                this.recording = true
+              if (!this.activeRecording) {
+                this.activeRecording = await this.recorder.start()
               } else {
-                const [buffer, blob] = await this.recorder.stop().getMp3()
-                this.recording = false
-                const file = new File(
-                  buffer,
-                  'recording' + new Date().toJSON().replace(/\W/g, '') + '.mp3',
-                  {
-                    type: blob.type,
-                    lastModified: Date.now()
-                  }
+                const { waveform } = this.activeRecording
+                const stoppedRecording = this.activeRecording.stop()
+                const file = await stoppedRecording.getFile(
+                  'recording' + new Date().toJSON().replace(/\W/g, '') + '.wav'
                 )
                 const url = URL.createObjectURL(file)
-                this.recordings.unshift({ file, url, id: nextId++ })
+                this.activeRecording = null
+                this.recordings.unshift({ file, url, id: nextId++, waveform })
               }
             } catch (e) {
               console.error(e)
@@ -261,21 +377,14 @@
         }
       })
     </script>
-    <style>
-      /* GitHub’s README API renders header with `a.anchor` link.
-       * It does not work with Vue Router and so is hidden.
-       * This is just to show the functionality of vuetoy; feel free to remove it when you implement your app. */
-      .markdown-content a.anchor {
-        display: none;
-      }
-    </style>
+
+    <script src="vendor/audiobuffer-to-wav.js"></script>
 
     <!-- ############################################################### -->
 
     <!-- Load the Vue dependency -->
     <script src="https://unpkg.com/vue@2.6.10/dist/vue.js"></script>
     <script src="https://unpkg.com/vue-router@3.1.3/dist/vue-router.js"></script>
-    <script src="https://unpkg.com/mic-recorder-to-mp3@2.2.1/dist/index.min.js"></script>
 
     <!-- Start the runtime -->
     <script>
